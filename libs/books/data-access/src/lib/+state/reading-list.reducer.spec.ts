@@ -1,65 +1,126 @@
+import { TestBed } from '@angular/core/testing';
+import { ReplaySubject } from 'rxjs';
+import { provideMockActions } from '@ngrx/effects/testing';
+import { provideMockStore } from '@ngrx/store/testing';
+import { HttpTestingController } from '@angular/common/http/testing';
+
+import { SharedTestingModule } from '@tmo/shared/testing';
+import { ReadingListEffects } from './reading-list.effects';
 import * as ReadingListActions from './reading-list.actions';
-import {
-  initialState,
-  readingListAdapter,
-  reducer,
-  State
-} from './reading-list.reducer';
 import { createBook, createReadingListItem } from '@tmo/shared/testing';
 
-describe('Books Reducer', () => {
-  describe('valid Books actions', () => {
-    let state: State;
+describe('Reading List Reducer', () => {
+  let actions: ReplaySubject<any>;
+  let effects: ReadingListEffects;
+  let httpMock: HttpTestingController;
 
-    beforeEach(() => {
-      state = readingListAdapter.setAll(
-        [createReadingListItem('A'), createReadingListItem('B')],
-        initialState
-      );
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [SharedTestingModule],
+      providers: [
+        ReadingListEffects,
+        provideMockActions(() => actions),
+        provideMockStore(),
+      ],
     });
 
-    it('loadBooksSuccess should load books from reading list', () => {
-      const list = [
-        createReadingListItem('A'),
-        createReadingListItem('B'),
-        createReadingListItem('C')
-      ];
-      const action = ReadingListActions.loadReadingListSuccess({ list });
-
-      const result: State = reducer(initialState, action);
-
-      expect(result.loaded).toBe(true);
-      expect(result.ids.length).toEqual(3);
-    });
-
-    it('failedAddToReadingList should undo book addition to the state', () => {
-      const action = ReadingListActions.failedAddToReadingList({
-        book: createBook('B')
-      });
-
-      const result: State = reducer(state, action);
-
-      expect(result.ids).toEqual(['A']);
-    });
-
-    it('failedRemoveFromReadingList should undo book removal from the state', () => {
-      const action = ReadingListActions.failedRemoveFromReadingList({
-        item: createReadingListItem('C')
-      });
-
-      const result: State = reducer(state, action);
-
-      expect(result.ids).toEqual(['A', 'B', 'C']);
-    });
+    effects = TestBed.inject(ReadingListEffects);
+    httpMock = TestBed.inject(HttpTestingController);
   });
 
-  describe('unknown action', () => {
-    it('should return the previous state', () => {
-      const action = {} as any;
-
-      const result = reducer(initialState, action);
-
-      expect(result).toEqual(initialState);
+  it('should load books reading list', (done) => {
+    actions = new ReplaySubject();
+    actions.next(effects.ngrxOnInitEffects());
+    effects.loadReadingList$.subscribe((action) => {
+      expect(action).toEqual(
+        ReadingListActions.loadReadingListSuccess({ list: [] })
+      );
+      done();
     });
+    httpMock.expectOne('/api/reading-list').flush([]);
+  });
+
+  it('should fail to load books reading list', (done) => {
+    actions = new ReplaySubject();
+    actions.next(ReadingListActions.init());
+    const outcome = ReadingListActions.loadReadingListError(
+      new ErrorEvent('error')
+    );
+    effects.loadReadingList$.subscribe((action) => {
+      expect(action.type).toEqual(outcome.type);
+      done();
+    });
+    httpMock.expectOne('/api/reading-list').error(new ErrorEvent('error'));
+  });
+
+  it('should add book to reading list', (done) => {
+    actions = new ReplaySubject();
+    actions.next(
+      ReadingListActions.addToReadingList({ book: createBook('abcdef') })
+    );
+
+    effects.addBook$.subscribe((action) => {
+      expect(action).toEqual(
+        ReadingListActions.confirmedAddToReadingList({
+          book: createBook('abcdef'),
+        })
+      );
+      done();
+    });
+
+    httpMock.expectOne('/api/reading-list').flush({ book: createBook('abcdef') });
+  });
+
+  it('should remove book from reading list', (done) => {
+    actions = new ReplaySubject();
+    actions.next(
+      ReadingListActions.removeFromReadingList({
+        item: createReadingListItem('B-12345678'),
+      })
+    );
+
+    effects.removeBook$.subscribe((action) => {
+      expect(action).toEqual(
+        ReadingListActions.confirmedRemoveFromReadingList({
+          item: createReadingListItem('B-12345678'),
+        })
+      );
+      done();
+    });
+
+    httpMock
+      .expectOne('/api/reading-list/B-12345678')
+      .flush({ item: createReadingListItem('B-12345678') });
+  });
+
+  it('should return failedAddToReadingList with book, on fail', (done) => {
+    const book = createBook('B');
+    actions = new ReplaySubject();
+    actions.next(ReadingListActions.addToReadingList({ book }));
+
+    effects.addBook$.subscribe((action) => {
+      expect(action).toEqual(
+        ReadingListActions.failedAddToReadingList({ book })
+      );
+      done();
+    });
+    httpMock
+      .expectOne(`/api/reading-list`)
+      .flush(book, { status: 400, statusText: 'Bad Request' });
+  });
+
+  it('should return failedRemoveFromReadingList with readingItem, on fail', (done) => {
+    const item = createReadingListItem('B');
+    actions = new ReplaySubject();
+    actions.next(ReadingListActions.removeFromReadingList({ item }));
+    effects.removeBook$.subscribe((action) => {
+      expect(action).toEqual(
+        ReadingListActions.failedRemoveFromReadingList({ item })
+      );
+      done();
+    });
+    httpMock
+      .expectOne(`/api/reading-list/${item.bookId}`)
+      .flush(item, { status: 400, statusText: 'Cannot Delete Reading Item' });
   });
 });
