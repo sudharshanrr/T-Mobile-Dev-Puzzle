@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Store } from '@ngrx/store';
 import {
   addToReadingList,
@@ -6,24 +6,26 @@ import {
   getAllBooks,
   getBooksError,
   ReadingListBook,
-  searchBooks
+  searchBooks,
 } from '@tmo/books/data-access';
 import { FormBuilder } from '@angular/forms';
 import { Book } from '@tmo/shared/models';
-import { Observable } from 'rxjs';
+import { Observable, Subscription, of } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
 
 @Component({
   selector: 'tmo-book-search',
   templateUrl: './book-search.component.html',
-  styleUrls: ['./book-search.component.scss']
+  styleUrls: ['./book-search.component.scss'],
 })
-export class BookSearchComponent implements OnInit {
+export class BookSearchComponent implements OnInit, OnDestroy {
   books: ReadingListBook[];
   errorMessage: string;
   loading = false;
+  searchSubscription$: Subscription;
 
   searchForm = this.fb.group({
-    term: ''
+    term: '',
   });
 
   constructor(
@@ -31,22 +33,37 @@ export class BookSearchComponent implements OnInit {
     private readonly fb: FormBuilder
   ) {}
 
-
   ngOnInit(): void {
-    this.store.select(getAllBooks).subscribe(books => {
+    this.store.select(getAllBooks).subscribe((books) => {
       this.books = books;
-      if(books.length){
+      if (books.length) {
         this.errorMessage = '';
       }
       this.loading = false;
     });
-    this.store.select(getBooksError).subscribe((err: any)=>{
-      if(err){
+    this.store.select(getBooksError).subscribe((err: any) => {
+      if (err) {
         this.store.dispatch(clearSearch());
-        this.errorMessage = err?.error ? err?.error.message : 'Something went wrong! Couldn\'t fetch Book details for the given search term!';
+        this.errorMessage = err?.error
+          ? err?.error.message
+          : "Something went wrong! Couldn't fetch Book details for the given search term!";
         this.loading = false;
       }
     });
+
+    this.searchSubscription$ = this.searchForm
+      .get('term')
+      .valueChanges.pipe(
+        debounceTime(500),
+        distinctUntilChanged())
+      .subscribe((newValue) => {
+        this.loading = true;
+        if (newValue) {
+          this.store.dispatch(searchBooks({ term: newValue }));
+        } else {
+          this.store.dispatch(clearSearch());
+        }
+      });
   }
 
   formatDate(date: void | string) {
@@ -60,16 +77,11 @@ export class BookSearchComponent implements OnInit {
   }
 
   searchExample() {
+    this.errorMessage = '';
     this.searchForm.controls.term.setValue('javascript');
-    this.searchBooks();
   }
 
-  searchBooks() {
-    this.loading = true;
-    if (this.searchForm.value.term) {
-      this.store.dispatch(searchBooks({ term: this.searchForm.value.term }));
-    } else {
-      this.store.dispatch(clearSearch());
-    }
+  ngOnDestroy(): void {
+    this.searchSubscription$?.unsubscribe();  
   }
 }
