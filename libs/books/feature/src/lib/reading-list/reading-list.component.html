@@ -1,15 +1,44 @@
 <ng-container *ngIf="(readingList$ | async).length > 0; else empty">
   <div class="reading-list-item" *ngFor="let b of readingList$ | async">
     <div>
-      <img class="reading-list-item--cover" [src]="b.coverUrl" alt="{{b.title}} image"/>
+      <img
+        class="reading-list-item--cover"
+        [src]="b.coverUrl"
+        alt="{{ b.title }} image"
+      />
     </div>
     <div class="reading-list-item--details">
-      <strong class="reading-list-item--details--title">{{ b.title }}</strong>
+      <strong class="reading-list-item--details--title"
+        >{{ b.title
+        }}<mat-icon
+          data-toggle="tooltip"
+          data-placement="top"
+          title="Finished"
+          *ngIf="b.finished"
+          class="check-circle"
+          >check_circle</mat-icon
+        ></strong
+      >
       <div class="reading-list-item--details--author">
         {{ b.authors.join(',') }}
       </div>
+      <div class="finished-book" *ngIf="b.finished">
+        Marked as read on {{ b.finishedDate | date: 'medium' }}
+      </div>
     </div>
-    <div>
+    <div class="actions">
+      <button
+        mat-icon-button
+        *ngIf="!b.finished"
+        class="finish-btn"
+        data-toggle="tooltip"
+        data-placement="top"
+        title="Mark as read"
+        [attr.aria-label]="'Mark as read ' + b.title"
+        (click)="markAsRead(b)"
+      >
+        <mat-icon>check_circle</mat-icon>
+      </button>
       <button
         mat-icon-button
         color="warn"

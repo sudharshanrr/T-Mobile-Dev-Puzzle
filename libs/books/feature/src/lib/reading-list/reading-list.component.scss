@@ -32,6 +32,25 @@
       overflow: hidden;
       white-space: nowrap;
     }
+    .check-circle {
+      font-size: 15px;
+      height: 12px;
+      color: green;
+      width: 12px;
+    }
+    .finished-book {
+      font-size: 12px;
+      font-weight: 600;
+      color: #3d7b77;
+    }
+  }
+  .actions {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    .finish-btn {
+      color: #3f51b5;
+    }
   }
 }
 
