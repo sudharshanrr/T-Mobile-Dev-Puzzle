@@ -4,11 +4,13 @@ import {
   addToReadingList,
   clearSearch,
   getAllBooks,
+  getBooksError,
   ReadingListBook,
   searchBooks
 } from '@tmo/books/data-access';
 import { FormBuilder } from '@angular/forms';
 import { Book } from '@tmo/shared/models';
+import { Observable } from 'rxjs';
 
 @Component({
   selector: 'tmo-book-search',
@@ -17,6 +19,8 @@ import { Book } from '@tmo/shared/models';
 })
 export class BookSearchComponent implements OnInit {
   books: ReadingListBook[];
+  errorMessage: string;
+  loading = false;
 
   searchForm = this.fb.group({
     term: ''
@@ -27,13 +31,21 @@ export class BookSearchComponent implements OnInit {
     private readonly fb: FormBuilder
   ) {}
 
-  get searchTerm(): string {
-    return this.searchForm.value.term;
-  }
 
   ngOnInit(): void {
     this.store.select(getAllBooks).subscribe(books => {
       this.books = books;
+      if(books.length){
+        this.errorMessage = '';
+      }
+      this.loading = false;
+    });
+    this.store.select(getBooksError).subscribe((err: any)=>{
+      if(err){
+        this.store.dispatch(clearSearch());
+        this.errorMessage = err?.error ? err?.error.message : 'Something went wrong! Couldn\'t fetch Book details for the given search term!';
+        this.loading = false;
+      }
     });
   }
 
@@ -53,8 +65,9 @@ export class BookSearchComponent implements OnInit {
   }
 
   searchBooks() {
+    this.loading = true;
     if (this.searchForm.value.term) {
-      this.store.dispatch(searchBooks({ term: this.searchTerm }));
+      this.store.dispatch(searchBooks({ term: this.searchForm.value.term }));
     } else {
       this.store.dispatch(clearSearch());
     }
