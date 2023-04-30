@@ -24,4 +24,12 @@ describe('ProductsListComponent', () => {
   it('should create', () => {
     expect(component).toBeDefined();
   });
+
+  it('formatDate() : should return formatted data', () => {
+    let result = component.formatDate('01/12/2022');
+    expect(result).toBe('1/12/2022');
+    result = component.formatDate('');
+    expect(result).toBeUndefined();
+  })
+
 });
